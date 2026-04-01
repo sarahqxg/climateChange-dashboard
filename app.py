@@ -3,13 +3,12 @@ import pandas as pd
 import plotly.express as px
 import pycountry
 import pycountry_convert as pc
-import ssl
+import numpy as np
+import random
 
-# 🔥 FIX SSL ISSUE
-ssl._create_default_https_context = ssl._create_unverified_context
 
 # =========================
-# LOAD DATA (cache for speed)
+# LOAD DATA (Gas Emissions by Sector)
 # =========================
 gaspath = "/Users/qianxiaogou/Desktop/uni/Y3/datavis/cw/data/ghg-emissions-by-sector.csv"
 gas = pd.read_csv(gaspath)
@@ -173,18 +172,6 @@ def load_data():
 
 df = load_data()
 
-# =========================
-# SIDEBAR FILTER
-# =========================
-years = sorted(df["Year"].unique())
-
-selected_year = st.slider(
-    "Select Year",
-    min_value=min(years),
-    max_value=max(years),
-    value=min(years)
-)
-
 
 # =========================
 # FILTER DATA
@@ -201,12 +188,9 @@ fig = px.choropleth(
     hover_name="Entity",
     color_continuous_scale="RdBu_r",
     range_color=(-1, 2),
-    title=f"🌡️ Temperature Anomaly in {selected_year}",
     animation_frame="Year"
 )
-
 fig.update_layout(
-    title={"x": 0.5},
     coloraxis_colorbar=dict(title="Temp Anomaly (°C)")
 )
 
@@ -218,18 +202,8 @@ st.plotly_chart(fig, use_container_width=True)
 
 
 
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import random
 
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import random
-
-st.set_page_config(layout="wide")
+#st.set_page_config(layout="wide")
 
 st.title("🌍 Global Natural Disaster Dashboard (2000–2025)")
 
