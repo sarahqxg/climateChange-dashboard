@@ -5,6 +5,8 @@ import pycountry
 import pycountry_convert as pc
 import numpy as np
 import random
+import geopandas as gpd
+
 
 
 # =========================
@@ -190,7 +192,7 @@ def co2_line_chart(co, countries):
 # UI
 # =========================
 def section_co2(co):
-    st.subheader("📈 CO₂ Emissions Trend")
+    st.subheader("CO₂ Emissions Trend")
 
     st.markdown("""
     Carbon dioxide (CO₂) is the most significant greenhouse gas emitted by human activities.
@@ -232,7 +234,6 @@ def temperature_map_chart(temp):
         range_color=(-1, 2),
         animation_frame="Year"
     )
-
     fig.update_layout(
         coloraxis_colorbar=dict(title="Temp Anomaly (°C)")
     )
@@ -243,12 +244,12 @@ def temperature_map_chart(temp):
 # UI
 # =========================
 def section_temperature(temp):
-    st.subheader("🌡 Global Temperature Anomaly")
+    st.subheader(" Global Temperature Anomaly")
 
     st.markdown("""
     Global temperatures have increased over time, reflecting the impact of climate change.
     
-    This map shows how temperature anomalies vary across countries and years.
+    This map shows how temperature anomalies vary across years.
     """)
 
     fig = temperature_map_chart(temp)
@@ -295,47 +296,48 @@ def prepare_disaster_data(disaster):
     # -------------------------
     # FIX MISSING COORDINATES
     # -------------------------
-    country_centroids = {
-        "USA": (39, -98), "CHN": (35, 103), "IND": (21, 78),
-        "BRA": (-10, -55), "RUS": (60, 90), "AUS": (-25, 133),
-        "IDN": (-5, 120), "CAN": (56, -106), "ARG": (-34, -64),
-        "ZAF": (-30, 25), "MEX": (23, -102), "JPN": (36, 138),
-        "DEU": (51, 10), "FRA": (46, 2), "GBR": (55, -3)
-    }
+    url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson"
+    world = gpd.read_file(url)
+    # compute centroids
+    world["centroid"] = world.geometry.centroid
+    world["centroid_lat"] = world.centroid.y
+    world["centroid_lon"] = world.centroid.x
 
+    # keep only needed columns
+    centroids = world[["ISO_A3", "centroid_lat", "centroid_lon"]]    
+    centroids = centroids.rename(columns={"ISO_A3": "ISO"})
+    disaster = disaster.merge(centroids, on="ISO", how="left")
     def jitter_coords(lat, lon, scale=2):
         return (
             lat + random.uniform(-scale, scale),
             lon + random.uniform(-scale, scale)
         )
 
-    # make jitter stable (IMPORTANT)
     random.seed(42)
 
     lat_fixed = []
     lon_fixed = []
 
     for _, row in disaster.iterrows():
+        # use real coordinates if available
         if pd.notna(row["Latitude"]) and pd.notna(row["Longitude"]):
             lat_fixed.append(row["Latitude"])
             lon_fixed.append(row["Longitude"])
         else:
-            iso = row["ISO"]
-            if iso in country_centroids:
-                base_lat, base_lon = country_centroids[iso]
-                lat, lon = jitter_coords(base_lat, base_lon)
+            # fallback to centroid + jitter
+            if pd.notna(row["centroid_lat"]) and pd.notna(row["centroid_lon"]):
+                lat, lon = jitter_coords(row["centroid_lat"], row["centroid_lon"])
             else:
-                lat, lon = None, None
+                lat = random.uniform(-60, 80)
+                lon = random.uniform(-180, 180)
 
             lat_fixed.append(lat)
             lon_fixed.append(lon)
 
+    # overwrite columns
     disaster["Latitude"] = lat_fixed
     disaster["Longitude"] = lon_fixed
-
-    # drop only if STILL missing after fallback
-    disaster = disaster.dropna(subset=["Latitude", "Longitude"])
-
+    disaster = disaster.drop(columns=["centroid_lat", "centroid_lon"])
     # -------------------------
     # FEATURE ENGINEERING
     # -------------------------
@@ -439,7 +441,7 @@ def disaster_bar_chart(dia_count, disaster_total):
 # UI
 # =========================
 def section_disaster(disaster):
-    st.subheader("🌪 Climate Disasters")
+    st.subheader("Climate Disasters")
 
     st.markdown("""
     Rising global temperatures contribute to more frequent and severe 
@@ -474,7 +476,6 @@ def section_disaster(disaster):
     .groupby("Year")["Count"]
     .sum()
     .reset_index()
-    
     )
     st.plotly_chart(
         disaster_map_chart(disaster_filtered),
@@ -483,7 +484,6 @@ def section_disaster(disaster):
     st.markdown(
         "Total amount of disasters and detailed breakdown by each type are shown in the bar chart below."
     )
-
     st.plotly_chart(
         disaster_bar_chart(dia_count_filtered, disaster_total_filtered),
         use_container_width=True
@@ -495,25 +495,22 @@ def section_disaster(disaster):
 # =========================
 
 # =========================
-# PAGE CONFIG (MUST BE FIRST)
+# PAGE CONFIG 
 # =========================
 st.set_page_config(
     page_title="Climate Change Dashboard - Qian Ying 20593898",
     layout="wide"
 )
-
 # =========================
 # TITLE
 # =========================
-st.title(" The Modern Climate Crisis: 2000–2025")
-
+st.title(" The Modern Climate Crisis: 2000–Present")
 st.markdown("""
 An interactive dashboard exploring climate change through temperature trends,
 greenhouse gas emissions, and natural disasters.
 
 Use the tabs to navigate different aspects of climate analysis.
 """)
-
 st.divider()
 
 # =========================
